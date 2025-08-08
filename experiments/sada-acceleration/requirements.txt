@@ -1,0 +1,6 @@
+diffusers>=0.27.0
+transformers
+accelerate
+lpips
+# Installs the SADA library directly from the source repository
+git+https://github.com/Ting-Justin-Jiang/sada-icml.git
