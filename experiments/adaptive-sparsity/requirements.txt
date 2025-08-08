@@ -1,0 +1,8 @@
+# Dependencies for the adaptive sparsity experiment
+optuna
+transformers==4.36.2 # A more recent version compatible with latest LLaVA
+accelerate
+sentencepiece
+# Note: This experiment assumes that 'llava' and its dependencies
+# are already installed in the main project environment.
+# pip install git+https://github.com/haotian-liu/LLaVA.git
