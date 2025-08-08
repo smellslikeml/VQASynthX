@@ -1,0 +1,12 @@
+{
+  "vqasynth_spatial": {
+    "hf_hub_url": "remyxai/vqasynth_spacellava",
+    "split": "train",
+    "columns": {
+      "image": "image",
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  }
+}
