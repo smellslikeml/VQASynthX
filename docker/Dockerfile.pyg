@@ -1,0 +1,23 @@
+# This Dockerfile sets up an environment for the PyG experiment.
+# It starts from a PyTorch base image, installs VQASynth dependencies,
+# and then installs the required PyTorch Geometric libraries.
+
+# Use a PyTorch image with CUDA support
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+
+WORKDIR /app
+
+# Copy VQASynth application code
+COPY . .
+
+# Install VQASynth dependencies from requirements.txt
+# Assuming torch and torchvision are handled by the base image
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install PyTorch Geometric and its dependencies using the official wheels
+# for the corresponding PyTorch and CUDA version of the base image.
+RUN pip install --no-cache-dir torch_geometric
+RUN pip install --no-cache-dir pyg_lib torch_scatter torch_sparse -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
+
+# Set the entrypoint to run the experiment script
+CMD ["python", "experiments/pyg_scene_graph/run.py"]
