@@ -1,0 +1,3 @@
+# Requirements for the Gated Linear Attention (GLA) integration experiment
+torch
+flash-linear-attention
