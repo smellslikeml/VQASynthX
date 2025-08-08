@@ -1,84 +1,74 @@
-import os
 import argparse
-from vqasynth.datasets import Dataloader
-from vqasynth.utils import filter_null
-from vqasynth.r1_reasoning import R1Reasoner
+import json
+import os
+from pathlib import Path
 
-def save_and_push_datasets(dataset, output_dir, target_repo_name, images, dataloader):
+from tqdm import tqdm
+from vllm import LLM, SamplingParams
+
+# This experiment integrates the data generation philosophy from open-r1.
+# The open-r1 project focuses on distilling reasoning traces from powerful models
+# to create datasets like 'Mixture-of-Thoughts'. See `src/open_r1/generate.py`.
+# We apply the same principle here: use a strong reasoning model to generate
+# a chain-of-thought for the spatial VQA prompts created in the VQASynth pipeline.
+
+def generate_reasoning_trace(llm, prompt, sampling_params):
+    """Generates a reasoning trace for a given prompt."""
+    outputs = llm.generate([prompt], sampling_params)
+    return outputs[0].outputs[0].text.strip()
+
+def main(input_dir, output_dir, model_id, max_samples=None):
     """
-    Save the full dataset and a dataset with selected columns, then push to the hub.
-
-    Args:
-        dataset: The full dataset after processing.
-        output_dir: Directory to save the dataset.
-        target_repo_name: The name of the target repository.
-        images: The column name for images.
-        dataloader: Dataloader instance to handle saving and pushing datasets.
+    Loads VQA prompts, generates a CoT reasoning trace using an open-r1 style model,
+    and saves the augmented dataset.
     """
-    dataloader.save_to_disk(dataset)
-    dataloader.push_to_hub(dataset, f"{target_repo_name}_full_reasoning")
+    print(f"Loading model: {model_id}")
+    # Using vLLM as suggested in the open-r1 installation guide for efficient inference.
+    llm = LLM(model=model_id, trust_remote_code=True, tensor_parallel_size=1)
+    
+    # These sampling parameters are a reasonable starting point.
+    sampling_params = SamplingParams(temperature=0.6, top_p=0.9, max_tokens=1024)
 
-    final_dataset = dataset.select_columns([images, "messages", "input", "output", "reasoning"])
-    dataloader.push_to_hub(final_dataset, target_repo_name)
+    input_path = Path(input_dir) / "prompts.jsonl"
+    output_path = Path(output_dir) / "reasoning.jsonl"
+    
+    os.makedirs(output_dir, exist_ok=True)
 
-def main(
-    output_dir,
-    source_repo_id,
-    target_repo_name,
-    images_column,
-    text_column,
-    api_key,
-    model,
-    delay
-):
-    dataloader = Dataloader(output_dir)
+    print(f"Reading prompts from {input_path}")
+    with open(input_path, 'r') as f:
+        data = [json.loads(line) for line in f]
 
-    reasoner = R1Reasoner(
-        api_key=api_key,
-        model=model,
-        image_column=images_column,
-        text_column=text_column,
-        delay=delay
-    )
+    if max_samples:
+        data = data[:max_samples]
+        print(f"Processing a maximum of {max_samples} samples.")
 
-    dataset = dataloader.load_dataset(source_repo_id)
+    results = []
+    for item in tqdm(data, desc="Generating Reasoning Traces"):
+        # The prompt format is designed to elicit a step-by-step thought process,
+        # inspired by the datasets mentioned in the open-r1 README.
+        question = item['question']
+        prompt = f"<|im_start|>system\nYou are an expert in spatial reasoning. Analyze the user's question and provide a step-by-step thinking process that leads to the final answer. Think out loud.<|im_end|>\n<|im_start|>user\n{question}<|im_end|>\n<|im_start|>assistant\n"
+        
+        reasoning_trace = generate_reasoning_trace(llm, prompt, sampling_params)
+        
+        new_item = item.copy()
+        new_item['reasoning_trace'] = reasoning_trace
+        results.append(new_item)
 
-    dataset = dataset.map(
-        reasoner.apply_transform,
-        fn_kwargs={
-            "images": images_column,
-            "text": text_column
-        },
-        batched=True,
-        batch_size=2
-    )
+    print(f"Writing augmented data to {output_path}")
+    with open(output_path, 'w') as f:
+        for item in results:
+            f.write(json.dumps(item) + '\n')
 
-    dataset = dataset.filter(filter_null, batched=True, batch_size=32)
-    print(dataset["train"][0])
+    print("Reasoning generation complete.")
 
-    save_and_push_datasets(dataset, output_dir, target_repo_name, images_column, dataloader)
-
-    print("R1 reasoning step complete")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Apply R1 Reasoner to dataset.")
-    parser.add_argument("--output_dir", type=str, required=True, help="Path to local dataset cache")
-    parser.add_argument("--source_repo_id", type=str, required=True, help="Source HuggingFace dataset repo id")
-    parser.add_argument("--target_repo_name", type=str, required=True, help="Target huggingface dataset repo id")
-    parser.add_argument("--images_column", type=str, required=True, help="Name of the image column")
-    parser.add_argument("--text_column", type=str, default="messages", help="Name of the text column")
-    parser.add_argument("--api_key", type=str, required=True, help="OpenAI API key")
-    parser.add_argument("--model", type=str, default="gpt-4o", help="OpenAI model to use")
-    parser.add_argument("--delay", type=int, default=1, help="Delay in seconds per call")
+    parser = argparse.ArgumentParser(description="Generate Chain-of-Thought reasoning for VQA data.")
+    parser.add_argument("--input_dir", type=str, required=True, help="Directory containing the input prompts.jsonl file.")
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory to save the output reasoning.jsonl file.")
+    parser.add_argument("--model_id", type=str, default="open-r1/OpenR1-Distill-7B", help="Hugging Face model ID to use for generation.")
+    parser.add_argument("--max_samples", type=int, default=None, help="Maximum number of samples to process for testing.")
+    
     args = parser.parse_args()
-
-    main(
-        args.output_dir,
-        args.source_repo_id,
-        args.target_repo_name,
-        args.images_column,
-        args.text_column,
-        args.api_key,
-        args.model,
-        args.delay
-    )
+    main(args.input_dir, args.output_dir, args.model_id, args.max_samples)
