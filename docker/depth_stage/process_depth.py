@@ -1,60 +1,76 @@
-import os
-import pickle
 import argparse
-import pandas as pd
-import numpy as np
-from PIL import Image
-from vqasynth.datasets import Dataloader
-from vqasynth.depth import DepthEstimator
-from vqasynth.utils import filter_null
+import importlib
+import os
+import sys
+
+# Add the current directory to the path to allow relative imports within the container
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 
-def main(output_dir, source_repo_id, images):
-    dataloader = Dataloader(output_dir)
-    depth = DepthEstimator()
+class Exp_Main:
+    def __init__(self, args):
+        self.args = args
+        self.model = self._build_model()
 
-    # Load dataset
-    dataset = dataloader.load_dataset(source_repo_id)
+    def _build_model(self):
+        """Dynamically imports and instantiates the specified model."""
+        try:
+            # The package is 'models' relative to this script's location
+            model_module = importlib.import_module(
+                f".models.{self.args.model.lower()}", package="models"
+            )
+            Model = getattr(model_module, "Model")
+        except (ImportError, AttributeError) as e:
+            print(f"Error: Model '{self.args.model}' not found or module is invalid.")
+            print(
+                f"Please ensure 'docker/depth_stage/models/{self.args.model.lower()}.py' exists and contains a 'Model' class."
+            )
+            raise e
 
-    # Apply the depth estimator transformation with batching
-    dataset = dataset.map(
-        depth.apply_transform,
-        fn_kwargs={'images': images},
-        batched=True,
-        batch_size=32
-    )
+        model = Model(self.args)
+        return model
 
-    # Filter out nulls with the updated filter_null function
-    dataset = dataset.filter(filter_null, batched=True, batch_size=32)
-
-    # Save the processed dataset to disk
-    dataloader.save_to_disk(dataset)
-
-    print("Depth extraction complete")
+    def process(self):
+        """Executes the processing logic for the selected model."""
+        print(f"Using model: {self.args.model}")
+        print(f"Processing data from {self.args.input_dir} to {self.args.output_dir}")
+        self.model.process(self.args.input_dir, self.args.output_dir)
+        print("Processing complete.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Extract depth from images in dataset", add_help=True
-    )
+    parser = argparse.ArgumentParser(description="VQASynth Depth Estimation Stage")
+
+    # --- Basic Config (Inspired by TSLib's run.py) ---
     parser.add_argument(
-        "--output_dir",
+        "--model",
         type=str,
         required=True,
-        help="Path to local dataset cache",
+        default="VGGT",
+        help="model name, e.g., VGGT, DepthPro",
+    )
+
+    # --- Data Config ---
+    parser.add_argument(
+        "--input_dir", type=str, required=True, help="path to input data"
     )
     parser.add_argument(
-        "--source_repo_id",
-        type=str,
-        required=True,
-        help="Source huggingface dataset repo id",
+        "--output_dir", type=str, required=True, help="path to save output data"
     )
+
+    # --- Model-specific args (example) ---
     parser.add_argument(
-        "--images",
-        type=str,
-        required=True,
-        help="Column containing PIL.Image images",
+        "--vggt_specific_param",
+        type=int,
+        default=1,
+        help="example model-specific parameter for VGGT",
     )
+
     args = parser.parse_args()
 
-    main(args.output_dir, args.source_repo_id, args.images)
+    # Create output directory if it doesn't exist
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    exp = Exp_Main(args)
+    exp.process()
