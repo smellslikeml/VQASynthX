@@ -1,100 +1,92 @@
-import os
-import cv2
 import json
-import pickle
 import random
-import itertools
 import argparse
-import numpy as np
-import pandas as pd
-from vqasynth.datasets import Dataloader
-from vqasynth.prompts import PromptGenerator
-from vqasynth.utils import filter_null
+from pathlib import Path
 
-from datasets import Features, Sequence, Value
+# Assuming the vqasynth package is installed in the Docker container
+from vqasynth.prompts.templates import SPATIAL_RELATIONSHIP_TEMPLATES
 
-message_schema = {
-    "role": Value("string"),
-    "index": Value("int64"),   # int64 is nullable so None is allowed.
-    "text": Value("string"),
-    "type": Value("string")
-}
 
-def build_new_features(dataset):
-    new_features = dataset["train"].features.copy()
-    new_features["prompts"] = Sequence(Value("string"))
-    new_features["truncated_prompts"] = Sequence(Value("string"))
-    new_features["messages"] = Sequence(message_schema)
-    return new_features
+def load_scene_data(input_path):
+    """Loads scene data from a JSON file."""
+    with open(input_path, "r") as f:
+        return json.load(f)
 
-def save_and_push_datasets(dataset, output_dir, target_repo_name, images, dataloader):
-    """
-    Save the full dataset and a dataset with selected columns, then push to the hub.
 
-    Args:
-        dataset: The full dataset after processing.
-        output_dir: Directory to save the dataset.
-        target_repo_name: The name of the target repository.
-        images: The column name for images.
-        dataloader: Dataloader instance to handle saving and pushing datasets.
-    """
-    dataloader.save_to_disk(dataset)
-    dataloader.push_to_hub(dataset, f"{target_repo_name}_full")
+def generate_qa_pairs(scene_data):
+    """Generates VQA pairs from scene data using templates."""
+    qa_pairs = []
+    # Example input format from a previous stage:
+    # {
+    #   "image_id": "img_001.jpg",
+    #   "relationships": [
+    #     {"obj1": "red forklift", "obj2": "brown boxes", "relation": "left_of", "answer": "Yes"}
+    #   ]
+    # }
+    for relationship in scene_data.get("relationships", []):
+        obj1 = relationship.get("obj1")
+        obj2 = relationship.get("obj2")
+        relation = relationship.get("relation")
+        answer = relationship.get("answer")
 
-    final_dataset = dataset.select_columns([images, "messages"])
-    dataloader.push_to_hub(final_dataset, target_repo_name)
+        if not all([obj1, obj2, relation, answer]):
+            continue
 
-def main(output_dir, source_repo_id, target_repo_name, images):
-    prompt_generator = PromptGenerator()
-    dataloader = Dataloader(output_dir)
-    dataset = dataloader.load_dataset(source_repo_id)
+        # Get the appropriate templates for the relation
+        if relation in SPATIAL_RELATIONSHIP_TEMPLATES:
+            template_functions = SPATIAL_RELATIONSHIP_TEMPLATES[relation]
+            # Pick one template randomly to generate the question
+            template = random.choice(template_functions)
+            question = template(obj1, obj2)
 
-    for col in ["prompts", "truncated_prompts", "messages"]:
-        if col in dataset.column_names:
-            dataset = dataset.remove_columns(col)
+            qa_pairs.append(
+                {
+                    "id": f"{scene_data['image_id']}_{len(qa_pairs)}",
+                    "image": scene_data["image_id"],
+                    "conversations": [
+                        {"from": "human", "value": question},
+                        {"from": "gpt", "value": answer},
+                    ],
+                }
+            )
+    return qa_pairs
 
-    dataset = dataset.map(
-        prompt_generator.apply_transform,
-        batched=False
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate VQA prompts from scene data using templates."
     )
-
-    dataset = dataset.filter(
-        lambda batch: [len(msg_list) > 0 for msg_list in batch["messages"]],
-        batched=True,
-        batch_size=32
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        required=True,
+        help="Directory containing scene data JSON files.",
     )
-
-    save_and_push_datasets(dataset, output_dir, target_repo_name, images, dataloader)
-
-    print(f"Processed and updated dataset with formatted messages.")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Extract prompts from metadata", add_help=True)
     parser.add_argument(
         "--output_dir",
         type=str,
         required=True,
-        help="Path to local dataset cache",
-    )
-    parser.add_argument(
-        "--source_repo_id",
-        type=str,
-        required=True,
-        help="Source huggingface dataset repo id",
-    )
-    parser.add_argument(
-        "--target_repo_name",
-        type=str,
-        required=True,
-        help="Target huggingface dataset repo id",
-    )
-    parser.add_argument(
-        "--images",
-        type=str,
-        required=True,
-        help="Column containing PIL.Image images",
+        help="Directory to save the generated VQA pairs.",
     )
     args = parser.parse_args()
 
-    main(args.output_dir, args.source_repo_id, args.target_repo_name, args.images)
+    input_path = Path(args.input_dir)
+    output_path = Path(args.output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    all_qa_pairs = []
+    for json_file in sorted(list(input_path.glob("*.json"))):
+        scene_data = load_scene_data(json_file)
+        qa_pairs = generate_qa_pairs(scene_data)
+        all_qa_pairs.extend(qa_pairs)
+        print(f"Processed {json_file.name}, generated {len(qa_pairs)} QA pairs.")
+
+    if all_qa_pairs:
+        output_file = output_path / "final_prompt_dataset.json"
+        with open(output_file, "w") as f:
+            json.dump(all_qa_pairs, f, indent=2)
+        print(f"Wrote {len(all_qa_pairs)} total QA pairs to {output_file}")
+
+
+if __name__ == "__main__":
+    main()
