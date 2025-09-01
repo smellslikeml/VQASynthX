@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "concept": "distance-feet",
+    "q": "How far is the chair in feet?",
+    "a": "..."
+  },
+  {
+    "id": 2,
+    "concept": "distance-meters",
+    "q": "What is the distance in meters?",
+    "a": "..."
+  },
+  {
+    "id": 3,
+    "concept": "distance-feet",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 4,
+    "concept": "distance-colloquial",
+    "q": "Is the table close?",
+    "a": "..."
+  },
+  {
+    "id": 5,
+    "concept": "distance-meters",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 6,
+    "concept": "distance-feet",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 7,
+    "concept": "distance-meters",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 8,
+    "concept": "distance-colloquial",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 9,
+    "concept": "distance-feet",
+    "q": "...",
+    "a": "..."
+  },
+  {
+    "id": 10,
+    "concept": "distance-meters",
+    "q": "...",
+    "a": "..."
+  }
+]
