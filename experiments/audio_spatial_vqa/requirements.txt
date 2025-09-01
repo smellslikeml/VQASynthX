@@ -1,0 +1,2 @@
+# Installs the MATPAC inference package directly from the source GitHub repository
+matpac @ git+https://github.com/aurianworld/matpac.git#subdirectory=inference_matpac
