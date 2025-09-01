@@ -1,0 +1,4 @@
+transformers
+torch
+# Installs flash-linear-attention and its dependencies like causal-conv1d
+fla-flash-linear-attention
