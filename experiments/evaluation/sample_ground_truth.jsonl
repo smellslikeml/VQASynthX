@@ -1,0 +1,4 @@
+{"id": "sample-1", "question": "What color is the truck?", "options": {"A": "Red", "B": "Blue", "C": "Green"}, "label": "B"}
+{"id": "sample-2", "question": "Is the box on the left or right?", "options": {"A": "Left", "B": "Right"}, "label": "A"}
+{"id": "sample-3", "question": "Which object is closer?", "options": {"A": "Forklift", "B": "Pallet", "C": "Man"}, "label": "C"}
+{"id": "sample-4", "question": "What is the primary material of the shelf?", "options": {"A": "Wood", "B": "Metal"}, "label": "B"}
