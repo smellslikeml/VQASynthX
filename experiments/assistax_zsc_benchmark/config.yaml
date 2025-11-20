@@ -1,0 +1,41 @@
+# Default configuration for the ZSC PPO benchmark.
+# Corresponds to the settings used for ppo_aht.py in Assistax.
+
+defaults:
+  - _self_
+  # Allows Hydra to create a unique output directory for each run
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+# --- Task Configuration ---
+ENV_NAME: "scratchitch"
+SEED: 42
+NUM_ENVS: 2048
+NUM_TRAIN_PARTNERS: 5 # Number of partners from the zoo to use for training
+NUM_TEST_PARTNERS: 5 # Number of partners from the zoo to use for testing
+
+# --- Partner Agent Zoo ---
+# IMPORTANT: This path must be updated to the location of the downloaded zoo.
+ZOO_PATH: "/app/zoo/"
+
+# --- PPO Algorithm Configuration ---
+TOTAL_TIMESTEPS: 5e7
+LEARNING_RATE: 3e-4
+NUM_STEPS: 10 # Number of steps per environment before an update
+UPDATE_EPOCHS: 4
+NUM_MINIBATCHES: 32
+GAMMA: 0.99
+GAE_LAMBDA: 0.95
+CLIP_EPS: 0.2
+ENT_COEF: 0.01
+VF_COEF: 0.5
+MAX_GRAD_NORM: 0.5
+ACTIVATION: "tanh"
+ANNEAL_LR: True
+
+# --- Logging and Saving ---
+LOG_FREQUENCY: 10 # Number of training loops to report logs
