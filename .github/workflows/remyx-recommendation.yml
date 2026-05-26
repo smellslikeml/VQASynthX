@@ -1,0 +1,30 @@
+name: Remyx Recommendation
+
+# Daily cron that uses remyxai/remyx-recommendation-action to pick a paper
+# from engine.remyx.ai for the configured VQASynth research interest and
+# open a draft PR with a Claude-Code-scaffolded integration.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'        # daily 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: remyxai/remyx-recommendation-action@v1
+        with:
+          # VQASynth research interest UUID on engine.remyx.ai
+          interest-id: 8c1de057-99fa-405f-a7af-7842492d2873
+          # Bypass per-day rate limit while we validate. Bump back to
+          # 7 (or remove) after validation.
+          rate-limit-days: '0'
