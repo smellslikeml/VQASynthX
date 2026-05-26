@@ -161,3 +161,26 @@ This project was inspired by or utilizes concepts discussed in the following res
   year={2024}
 }
 ```
+
+## DRScaffold: Boosting Dense-Scene Reasoning in Lightweight Vision Language Models Integration (experimental) 🧪
+
+Scaffolding for integrating [DRScaffold](https://arxiv.org/abs/2605.26038)
+into the VQASynth pipeline lives in `vqasynth/drscaffold_integration.py`.
+DRScaffold decomposes supervised fine-tuning into four causally ordered
+stages (entities → attributes → relations → conclusion) and ships with the
+DRBench benchmark (14,573 questions across 2,943 images, five task
+categories spanning three progressive reasoning layers).
+
+The module currently provides:
+
+- `DRScaffoldConfig` — paper-default hyperparameters (Qwen2.5-VL-3B base,
+  lr 1e-5, 3 epochs, etc.).
+- `DRScaffoldIntegration` — class scaffold with TODO checkpoint loading;
+  the no-checkpoint inference path returns empty stages so callers can
+  cleanly opt out.
+- Concrete utilities for Qwen-style bbox normalization, four-stage
+  parse/format round-tripping, DRBench category → reasoning layer
+  classification, and a VQASynth → DRScaffold dataset adapter.
+
+Recommended and scaffolded by the
+[Feature Finder](https://github.com/anthropics/feature-finder) pipeline.
