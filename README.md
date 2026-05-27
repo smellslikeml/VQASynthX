@@ -137,6 +137,41 @@ Try SpaceLLaVA in [Discord](http://discord.gg/b2yGuCNpuC)
 
 ![image](<https://github.com/remyxai/VQASynth/assets/9044907/8d99db2a-6b93-4123-85bd-8c91e795a5ef> "SpaceThinker-Qwen2.5VL-3B")
 
+## Multiview 3D Consistency Integration (experimental) 🧪
+
+VQASynth reconstructs 3D scenes with VGGT from single images and propagates that geometry into the synthetic VQA pairs. The paper [_Can These Views Be One Scene? Evaluating Multiview 3D Consistency when 3D Foundation Models Hallucinate_](https://arxiv.org/abs/2605.18754v1) shows that VGGT (and MASt3R / DUSt3R / Fast3R) can hallucinate dense geometry and cross-view support for unrelated scenes, repeated views, and pure noise — and proposes COLMAP-based, failure-aware consistency signals that correlate up to ~4× better with human judgment than MEt3R.
+
+The module `vqasynth/multiview_consistency_integration.py` is a scaffold for scoring VQASynth reconstructions with that family of signals:
+
+- `matches` — count of Lowe-filtered, geometrically verified keypoint matches between views
+- `registration` — whether classical SfM successfully registered the views into one pose graph
+- `dense_support` — fraction of pixels with triangulated 3D support
+- `failure` — whether reconstruction outright failed (a *positive* signal: failure on unrelated views is correct behavior)
+
+```python
+from vqasynth.multiview_consistency_integration import (
+    MultiviewConsistencyConfig,
+    MultiviewConsistencyEvaluator,
+)
+
+evaluator = MultiviewConsistencyEvaluator(MultiviewConsistencyConfig())
+result = evaluator.score_from_measurements(
+    num_matches=12,
+    inlier_ratio=0.05,
+    dense_support=0.02,
+    reconstruction_failed=True,
+)
+# {"indicators": {...}, "score": 0.0, "label": "hallucinated"}
+```
+
+What's implemented vs. stubbed:
+
+- ✅ Lowe's ratio filtering, dense-support fraction, pixel-coordinate normalization, signal indicators, the parametric-family weighted aggregation, scene-level min-rule rollup, and the configuration dataclass with paper-derived defaults.
+- ⚠️ `MultiviewConsistencyEvaluator.count_matches` requires OpenCV at call time (lazy-imported) and currently does descriptor-distance filtering only — RANSAC inlier verification is a TODO.
+- ⚠️ `MultiviewConsistencyEvaluator.run_colmap` is a documented `NotImplementedError`. The full COLMAP CLI pipeline (`feature_extractor` → `exhaustive_matcher` → `mapper` → `image_undistorter` + `patch_match_stereo`) needs the `colmap` binary installed in the VQASynth Docker image; wiring that in is tracked separately.
+
+Contributed via [Remyx Recommendation](https://engine.remyx.ai).
+
 ## References
 This project was inspired by or utilizes concepts discussed in the following research paper(s):
 ```
