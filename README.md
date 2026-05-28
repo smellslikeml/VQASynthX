@@ -161,3 +161,49 @@ This project was inspired by or utilizes concepts discussed in the following res
   year={2024}
 }
 ```
+
+## SegCompass Integration (experimental) 🧪
+
+[SegCompass](https://arxiv.org/abs/2605.22658v1) proposes a Sparse
+Autoencoder that maps chain-of-thought tokens and visual tokens into a
+shared sparse concept space, providing an interpretable bridge from CoT
+reasoning to segmentation masks. VQASynth already produces both halves
+(CoT traces from `r1_reasoning.R1Reasoner` and SAM2 masks with grounded
+captions from `localize.Localizer`), which makes this a natural axis for
+auditing whether VQASynth's CoT actually grounds in the segmented
+objects.
+
+`vqasynth/segcompass_integration.py` ships:
+
+- `SegCompassConfig` — paper hyperparameters (SAE expansion factor,
+  top-k sparsity, codebook size, slot count, RL/seg loss weights) with
+  reported defaults.
+- `SegCompassAligner` — analysis entry point. With no checkpoint it
+  runs a lexical fallback that scores each CoT concept against the
+  available caption/mask pairs and returns a per-concept coverage
+  report (drop-in usable with `datasets.map` via `apply_transform`).
+  Loading a real SegCompass SAE checkpoint is marked `TODO` until the
+  published weights are wired in.
+- Utilities (`extract_think_block`, `extract_concepts`, `mask_iou`,
+  `mask_area_fraction`, `concept_caption_overlap`,
+  `align_concepts_to_masks`, `coverage_report`) for the inputs the SAE
+  path will eventually consume.
+
+Quick start:
+
+```python
+from vqasynth.segcompass_integration import SegCompassAligner
+
+aligner = SegCompassAligner()
+report = aligner.analyze(
+    cot_text=example["output"],     # produced by R1Reasoner
+    masks=example["masks"],         # produced by Localizer
+    captions=example["captions"],
+)
+print(report["coverage"], report["per_concept"])
+```
+
+Tests live at `tests/test_segcompass_integration.py`.
+
+Contributed via [Remyx Recommendation](https://engine.remyx.ai).
+
